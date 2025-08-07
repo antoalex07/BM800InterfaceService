@@ -1,0 +1,13 @@
+{
+  "IpAddress": "127.0.0.1",
+  "Port": 8080,
+  "ConnectionMethod": "client",
+  "ReconnectIntervalSeconds": 30,
+  "ConnectionTimeoutSeconds": 10,
+  "ReceiveTimeoutSeconds": 30,
+  "SendTimeoutSeconds": 10,
+  "EnableKeepAlive": true,
+  "KeepAliveIntervalSeconds": 60,
+  "MaxReconnectAttempts": -1,
+  "LogLevel": "Information"
+}
