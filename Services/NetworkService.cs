@@ -1,14 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
-//using System.Text;
-using Microsoft.Extensions.Logging;
-using TestService.Models;
 using TestService.Handlers;
+using TestService.Models;
 
 namespace TestService.Services
 {
@@ -205,6 +198,13 @@ namespace TestService.Services
 
         private async Task ReceiveMessagesAsync(CancellationToken cancellationToken)
         {
+
+            if (_config.Direction == CommunicationDirection.Output)
+            {
+                _logger.LogWarning("ReceiveMessagesAsync called but service is configured for output only. Exiting receive task.");
+                return;
+            }
+
             var buffer = new byte[4096];
 
             try
@@ -269,6 +269,12 @@ namespace TestService.Services
 
         public async Task SendMessageAsync(string hexMessage)
         {
+            if (_config.Direction == CommunicationDirection.Input)
+            {
+                _logger.LogWarning("Attempted to send message on an Input-only connection.");
+                throw new InvalidOperationException("Sending messages is not allowed on an Input-only connection.");
+            }
+
             if (!IsConnected || _networkStream == null)
             {
                 throw new InvalidOperationException("Not connected");
