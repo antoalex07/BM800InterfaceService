@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using TestService.Models;
 using TestService.Services;
 
