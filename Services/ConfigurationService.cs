@@ -1,11 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Text.Json;
+﻿using System.Text.Json;
 using TestService.Models;
-using Microsoft.Extensions.Logging;
 
 namespace TestService.Services
 {
@@ -57,8 +51,18 @@ namespace TestService.Services
                 }
 
                 _logger.LogInformation("Configuration loaded successfully from {ConfigPath}", _configPath);
-                _logger.LogInformation("Connection Method: {Method}, IP: {IP}, Port: {Port}",
-                    _config.ConnectionMethod, _config.IpAddress, _config.Port);
+                _logger.LogInformation("Communication Type: {Type}", _config.CommunicationType);
+
+                if (_config.CommunicationType.ToUpper() == "TCP")
+                {
+                    _logger.LogInformation("TCP Settings - Method: {Method}, IP: {IP}, Port: {Port}",
+                        _config.ConnectionMethod, _config.IpAddress, _config.Port);
+                }
+                else if (_config.CommunicationType.ToUpper() == "SERIAL")
+                {
+                    _logger.LogInformation("Serial Settings - Port: {Port}, Baud: {Baud}, Parity: {Parity}, DataBits: {DataBits}, StopBits: {StopBits}",
+                        _config.PortName, _config.BaudRate, _config.Parity, _config.DataBits, _config.StopBits);
+                }
             }
             catch (Exception ex)
             {
@@ -74,9 +78,18 @@ namespace TestService.Services
         {
             var defaultConfig = new ConnectionConfig
             {
+                CommunicationType = "SERIAL",
                 IpAddress = "127.0.0.1",
                 Port = 8080,
                 ConnectionMethod = "client",
+                PortName = "COM1",
+                BaudRate = 9600,
+                Parity = "None",
+                DataBits = 8,
+                StopBits = "One",
+                Handshake = "None",
+                DtrEnable = false,
+                RtsEnable = false,
                 ReconnectIntervalSeconds = 30,
                 ConnectionTimeoutSeconds = 10,
                 ReceiveTimeoutSeconds = 30,
@@ -84,7 +97,10 @@ namespace TestService.Services
                 EnableKeepAlive = true,
                 KeepAliveIntervalSeconds = 60,
                 MaxReconnectAttempts = -1,
-                LogLevel = "Information"
+                LogLevel = "Information",
+                MessageDelimiter = "",
+                ReadBufferSize = 4096,
+                WriteBufferSize = 2048
             };
 
             try
