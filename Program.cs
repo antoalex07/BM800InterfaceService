@@ -8,9 +8,10 @@ namespace TestService
         public static void Main(string[] args)
         {
             Log.Logger = new LoggerConfiguration()
-            .WriteTo.File("C:\\Logs\\MyService\\app-log.txt", rollingInterval: RollingInterval.Day)
-            .WriteTo.File("C:\\Logs\\MyService\\error-log.txt", restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Error)
-            .CreateLogger();
+                .WriteTo.File("C:\\Logs\\MyService\\app-log.txt", rollingInterval: RollingInterval.Day)
+                .WriteTo.File("C:\\Logs\\MyService\\error-log.txt", restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Error)
+                .WriteTo.Console()
+                .CreateLogger();
 
             try
             {
@@ -25,17 +26,22 @@ namespace TestService
 
                 // Register services
                 builder.Services.AddSingleton<ConfigurationService>();
-                builder.Services.AddSingleton<INetworkService, NetworkService>();
+                builder.Services.AddSingleton<CommunicationFactory>();
+                builder.Services.AddSingleton<INetworkService>(serviceProvider =>
+                {
+                    var factory = serviceProvider.GetRequiredService<CommunicationFactory>();
+                    return factory.CreateCommunicationService();
+                });
                 builder.Services.AddHostedService<Worker>();
 
                 var host = builder.Build();
 
-                Log.Information("Starting the service...");
+                Log.Information("Service starting...");
                 host.Run();
             }
             catch (Exception ex)
             {
-                Log.Fatal(ex, "An unhandled exception occurred during bootstrapping the service.");
+                Log.Fatal(ex, "Service terminated unexpectedly");
             }
             finally
             {
