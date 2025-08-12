@@ -1,5 +1,9 @@
 {
-  "CommunicationType": "SERIAL",
+  "CommunicationType": "TCP",
+  "ConnectionMethod": "Server",
+  "IpAddress": "192.168.0.111",
+  "Port": 8080,
+  "Direction": "Output",
   "PortName": "COM4",
   "BaudRate": 9600,
   "Parity": "None",
