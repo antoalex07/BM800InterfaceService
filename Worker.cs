@@ -1,5 +1,6 @@
 using TestService.Models;
 using TestService.Services;
+using System.Text.RegularExpressions; // For parsing XML-like segments
 
 namespace TestService
 {
@@ -131,36 +132,171 @@ namespace TestService
                 // - Triggering business logic based on message content
                 // - Storing data in database
                 // - Sending responses back to the machine
-
                 if (messageData.Direction == "Received" && !string.IsNullOrEmpty(messageData.XmlContent))
                 {
-                    // Example: Parse XML and respond
-                    if (messageData.XmlContent.Contains("TestMessage"))
+                    // --- New Logic for GLUQUANT HBA1C ---
+                    // Check if the message content looks like the GLUQUANT format
+                    // A simple check is the presence of <SEND> tags
+                    if (messageData.XmlContent.Contains("<SEND>") && messageData.XmlContent.Contains("</SEND>"))
                     {
-                        _ = Task.Run(async () =>
+                        _logger.LogInformation("Detected GLUQUANT HBA1C message format.");
+
+                        // Parse the message content
+                        var analyzerResult = ParseAnalyzerMessage(messageData.XmlContent);
+
+                        if (analyzerResult != null)
                         {
-                            try
-                            {
-                                var responseXml = "<Response><Status>OK</Status><ReceivedAt>" +
-                                                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "</ReceivedAt></Response>";
-                                var responseHex = Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(responseXml));
+                            _logger.LogInformation("Parsed Analyzer Result: HbA1c={HbA1c}, HbA1ab={HbA1ab}, HbF={HbF}, HbLa1c={HbLa1c}, HbA1={HbA1}, HbA0={HbA0}",
+                                analyzerResult.HbA1c, analyzerResult.HbA1ab, analyzerResult.HbF, analyzerResult.HbLa1c, analyzerResult.HbA1, analyzerResult.HbA0);
 
-                                await Task.Delay(1000); // Small delay before response
-                                await _networkService.SendMessageAsync(responseHex);
+                            // --- TODO: Add Database Logic Here ---
+                            // Example placeholder for database insertion:
+                            // await InsertAnalyzerResultIntoDatabaseAsync(analyzerResult, messageData.Timestamp);
+                            // You would need to implement InsertAnalyzerResultIntoDatabaseAsync based on your DB technology (Entity Framework, Dapper, etc.)
 
-                                _logger.LogInformation("Response sent for test message");
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError(ex, "Error sending response message");
-                            }
-                        });
+                            // Example: Log the extracted data to a separate file
+                            LogAnalyzerResultToFile(analyzerResult, messageData.Timestamp);
+
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Failed to parse GLUQUANT HBA1C message content.");
+                        }
                     }
+
+                    //if (messageData.Direction == "Received" && !string.IsNullOrEmpty(messageData.XmlContent))
+                    //{
+                    //    // Example: Parse XML and respond
+                    //    if (messageData.XmlContent.Contains("TestMessage"))
+                    //    {
+                    //        _ = Task.Run(async () =>
+                    //        {
+                    //            try
+                    //            {
+                    //                var responseXml = "<Response><Status>OK</Status><ReceivedAt>" +
+                    //                                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "</ReceivedAt></Response>";
+                    //                var responseHex = Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(responseXml));
+
+                    //                await Task.Delay(1000); // Small delay before response
+                    //                await _networkService.SendMessageAsync(responseHex);
+
+                    //                _logger.LogInformation("Response sent for test message");
+                    //            }
+                    //            catch (Exception ex)
+                    //            {
+                    //                _logger.LogError(ex, "Error sending response message");
+                    //            }
+                    //        });
+                    //    }
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing received message: {HexData}", messageData.HexData);
+            }
+        }
+
+        /// <summary>
+        /// Parses the raw XML/Text content of a message expected to be in the GLUQUANT HBA1C format.
+        /// </summary>
+        /// <param name="messageContent">The full message content string.</param>
+        /// <returns>An AnalyzerResult object populated with data, or null if parsing fails.</returns>
+        private AnalyzerResult? ParseAnalyzerMessage(string messageContent)
+        {
+            try
+            {
+                var result = new AnalyzerResult();
+
+                // --- Extract <R> section content ---
+                // Use regex to find the content between <R> and </R> tags
+                // RegexOptions.Singleline allows . to match newline characters within the data
+                var rSectionMatch = Regex.Match(messageContent, @"<R>(.*?)</R>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
+                if (!rSectionMatch.Success)
+                {
+                    _logger.LogWarning("Could not find <R> section in message content.");
+                    return null; // Indicate parsing failure
+                }
+
+                // Get the content inside the <R> tags
+                string rContent = rSectionMatch.Groups[1].Value.Trim(); // Trim whitespace/newlines
+
+                // --- Parse lines within <R> section ---
+                // Split the content by newlines to get individual data lines
+                // StringSplitOptions.RemoveEmptyEntries handles potential empty lines
+                string[] lines = rContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+                foreach (string line in lines)
+                {
+                    // Each line is expected to be "Key|Value"
+                    string[] parts = line.Split('|');
+                    if (parts.Length == 2)
+                    {
+                        string key = parts[0].Trim(); // Trim whitespace
+                        string value = parts[1].Trim();
+
+                        // Map the key-value pair to the corresponding property in AnalyzerResult
+                        switch (key)
+                        {
+                            case "HbA1ab":
+                                result.HbA1ab = value;
+                                break;
+                            case "HbF":
+                                result.HbF = value;
+                                break;
+                            case "HbLa1c":
+                                result.HbLa1c = value;
+                                break;
+                            case "HbA1c":
+                                result.HbA1c = value;
+                                break;
+                            case "HbA1": // Based on the example, even if not in description list
+                                result.HbA1 = value;
+                                break;
+                            case "HbA0":
+                                result.HbA0 = value;
+                                break;
+                            default:
+                                _logger.LogDebug("Unknown key '{Key}' found in <R> section with value '{Value}'.", key, value);
+                                // Optionally store unknown keys in a dictionary if needed
+                                // result.AdditionalData[key] = value;
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogDebug("Skipping line in <R> section that does not conform to 'Key|Value' format: '{Line}'", line);
+                    }
+                }
+
+                return result; // Return the populated object
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while parsing analyzer message content.");
+                return null; // Indicate parsing failure due to exception
+            }
+        }
+
+        // --- Optional: Add a method to log the parsed result to a file ---
+        private void LogAnalyzerResultToFile(AnalyzerResult result, DateTime timestamp)
+        {
+            try
+            {
+                var logEntry = $"{timestamp:yyyy-MM-dd HH:mm:ss}," +
+                               $"HbA1c={result.HbA1c}," +
+                               $"HbA1ab={result.HbA1ab}," +
+                               $"HbF={result.HbF}," +
+                               $"HbLa1c={result.HbLa1c}," +
+                               $"HbA1={result.HbA1}," +
+                               $"HbA0={result.HbA0}" +
+                               Environment.NewLine;
+
+                File.AppendAllText("C:\\Temp\\analyzer-results.csv", logEntry); // Consider using Path.Combine for better path handling
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error logging analyzer result to file.");
             }
         }
 
