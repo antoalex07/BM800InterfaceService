@@ -9,7 +9,7 @@ namespace TestService.Services
         private readonly string _configPath = "config.json";
         private ConnectionConfig? _config;
         private FileSystemWatcher? _fileWatcher;
-        private readonly object _configLock = new object();
+        private readonly object _configLock = new();
 
         public event EventHandler<ConnectionConfig>? ConfigurationChanged;
 
