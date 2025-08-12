@@ -18,65 +18,57 @@ namespace TestService.Handlers
             {
                 // Convert hex to bytes
                 var bytes = Convert.FromHexString(hexMessage);
-
-                // Convert bytes to string (assuming UTF-8 encoding)
+                // Convert bytes directly to string (assuming UTF-8 encoding)
                 var messageString = Encoding.UTF8.GetString(bytes);
 
-                // Try to parse as XML
-                if (IsValidXml(messageString))
-                {
-                    return FormatXml(messageString);
-                }
-
-                // If not valid XML, return the raw string
-                _logger.LogDebug("Message is not valid XML: {Message}", messageString);
+                // Return the raw string content as-is
                 return messageString;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing hex message: {HexMessage}", hexMessage);
-                return null;
+                return null; // Return null on conversion error
             }
         }
 
-        private bool IsValidXml(string xmlString)
-        {
-            try
-            {
-                var xmlDoc = new XmlDocument();
-                xmlDoc.LoadXml(xmlString);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
+        //private static bool IsValidXml(string xmlString)
+        //{
+        //    try
+        //    {
+        //        var xmlDoc = new XmlDocument();
+        //        xmlDoc.LoadXml(xmlString);
+        //        return true;
+        //    }
+        //    catch
+        //    {
+        //        return false;
+        //    }
+        //}
 
-        private string FormatXml(string xmlString)
-        {
-            try
-            {
-                var xmlDoc = new XmlDocument();
-                xmlDoc.LoadXml(xmlString);
+        //private string FormatXml(string xmlString)
+        //{
+        //    try
+        //    {
+        //        var xmlDoc = new XmlDocument();
+        //        xmlDoc.LoadXml(xmlString);
 
-                using var stringWriter = new StringWriter();
-                using var xmlWriter = XmlWriter.Create(stringWriter, new XmlWriterSettings
-                {
-                    Indent = true,
-                    IndentChars = "  ",
-                    NewLineChars = "\n"
-                });
+        //        using var stringWriter = new StringWriter();
+        //        using var xmlWriter = XmlWriter.Create(stringWriter, new XmlWriterSettings
+        //        {
+        //            Indent = true,
+        //            IndentChars = "  ",
+        //            NewLineChars = "\n"
+        //        });
 
-                xmlDoc.Save(xmlWriter);
-                return stringWriter.ToString();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error formatting XML");
-                return xmlString;
-            }
-        }
+        //        xmlDoc.Save(xmlWriter);
+        //        return stringWriter.ToString();
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Error formatting XML");
+        //        return xmlString;
+        //    }
+        //}
 
         public string ConvertStringToHex(string input)
         {
