@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using System.Text; // Add this for Encoding.ASCII or Encoding.UTF8
 using TestService.Handlers;
 using TestService.Models;
 
@@ -8,8 +9,7 @@ namespace TestService.Services
     public class NetworkService : INetworkService
     {
         private readonly ILogger<NetworkService> _logger;
-        private readonly MessageHandler _messageHandler;
-
+        // private readonly MessageHandler _messageHandler; // Remove or comment if not used elsewhere in this class
         private ConnectionConfig _config;
         private TcpListener? _tcpListener;
         private TcpClient? _tcpClient;
@@ -18,22 +18,29 @@ namespace TestService.Services
         private Task? _connectionTask;
         private Task? _receiveTask;
         private Task? _keepAliveTask;
-
         private bool _isRunning;
         private int _reconnectAttempts;
         private readonly object _connectionLock = new object();
 
         public event EventHandler<MessageData>? MessageReceived;
         public event EventHandler<string>? ConnectionStatusChanged;
-
         public bool IsConnected { get; private set; }
 
         public NetworkService(ILogger<NetworkService> logger, ConfigurationService configService)
         {
             _logger = logger;
-            _config = configService.GetConfiguration();
-            _messageHandler = new MessageHandler(logger);
-
+            // _config = configService.GetConfiguration(); // Move this inside the lock or keep as is, but ensure it's loaded
+            // _messageHandler = new MessageHandler(logger); // Remove or comment if not used
+            // Load config safely
+            _config = new ConnectionConfig(); // Initialize with default
+            try
+            {
+                _config = configService.GetConfiguration(); // Get the actual config
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting initial configuration in NetworkService, using default.");
+            }
             configService.ConfigurationChanged += OnConfigurationChanged;
         }
 
@@ -198,15 +205,7 @@ namespace TestService.Services
 
         private async Task ReceiveMessagesAsync(CancellationToken cancellationToken)
         {
-
-            if (_config.Direction == CommunicationDirection.Output)
-            {
-                _logger.LogWarning("ReceiveMessagesAsync called but service is configured for output only. Exiting receive task.");
-                return;
-            }
-
             var buffer = new byte[4096];
-
             try
             {
                 while (IsConnected && !cancellationToken.IsCancellationRequested)
@@ -218,16 +217,23 @@ namespace TestService.Services
                         {
                             var receivedData = new byte[bytesRead];
                             Array.Copy(buffer, receivedData, bytesRead);
-
                             var hexData = Convert.ToHexString(receivedData);
-                            _logger.LogInformation("Received message: {HexData}", hexData);
+
+                            // --- Modified Section: Convert Hex to ASCII directly ---
+                            string asciiContent = Encoding.UTF8.GetString(receivedData); // Or Encoding.ASCII if appropriate and known
+                            _logger.LogInformation("Received message (HEX): {HexData}", hexData);
+                            _logger.LogInformation("Received message (ASCII): {AsciiContent}", asciiContent);
+                            // --- End Modified Section ---
 
                             var messageData = new MessageData
                             {
                                 HexData = hexData,
                                 Direction = "Received",
                                 Timestamp = DateTime.Now,
-                                XmlContent = _messageHandler.ProcessHexMessage(hexData)
+                                // --- Modified Section: Assign to AsciiContent ---
+                                AsciiContent = asciiContent
+                                // --- End Modified Section ---
+                                // XmlContent = _messageHandler.ProcessHexMessage(hexData) // Remove this line
                             };
 
                             MessageReceived?.Invoke(this, messageData);
@@ -269,33 +275,32 @@ namespace TestService.Services
 
         public async Task SendMessageAsync(string hexMessage)
         {
-            if (_config.Direction == CommunicationDirection.Input)
-            {
-                _logger.LogWarning("Attempted to send message on an Input-only connection.");
-                throw new InvalidOperationException("Sending messages is not allowed on an Input-only connection.");
-            }
-
             if (!IsConnected || _networkStream == null)
             {
                 throw new InvalidOperationException("Not connected");
             }
-
             try
             {
                 var bytes = Convert.FromHexString(hexMessage);
                 await _networkStream.WriteAsync(bytes, 0, bytes.Length);
                 await _networkStream.FlushAsync();
+                _logger.LogInformation("Sent message (HEX): {HexData}", hexMessage);
 
-                _logger.LogInformation("Sent message: {HexData}", hexMessage);
+                // --- Modified Section: Convert Hex to ASCII for logging/sending event ---
+                string asciiContent = Encoding.UTF8.GetString(bytes); // Or Encoding.ASCII
+                _logger.LogInformation("Sent message (ASCII): {AsciiContent}", asciiContent);
 
                 var messageData = new MessageData
                 {
                     HexData = hexMessage,
                     Direction = "Sent",
                     Timestamp = DateTime.Now,
-                    XmlContent = _messageHandler.ProcessHexMessage(hexMessage)
+                    // --- Modified Section: Assign to AsciiContent ---
+                    AsciiContent = asciiContent
+                    // --- End Modified Section ---
+                    // XmlContent = _messageHandler.ProcessHexMessage(hexMessage) // Remove this line
                 };
-
+                // --- End Modified Section ---
                 MessageReceived?.Invoke(this, messageData);
             }
             catch (Exception ex)
@@ -303,7 +308,7 @@ namespace TestService.Services
                 _logger.LogError(ex, "Error sending message: {HexData}", hexMessage);
                 throw;
             }
-        }
+        }                 
 
         private async Task CleanupConnectionAsync()
         {
