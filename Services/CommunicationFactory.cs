@@ -1,15 +1,9 @@
 ﻿namespace TestService.Services
 {
-    public class CommunicationFactory
+    public class CommunicationFactory(ILoggerFactory loggerFactory, ConfigurationService configService)
     {
-        private readonly ILoggerFactory _loggerFactory;
-        private readonly ConfigurationService _configService;
-
-        public CommunicationFactory(ILoggerFactory loggerFactory, ConfigurationService configService)
-        {
-            _loggerFactory = loggerFactory;
-            _configService = configService;
-        }
+        private readonly ILoggerFactory _loggerFactory = loggerFactory;
+        private readonly ConfigurationService _configService = configService;
 
         public INetworkService CreateCommunicationService()
         {
