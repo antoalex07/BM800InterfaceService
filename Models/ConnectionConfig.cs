@@ -3,7 +3,7 @@
     public class ConnectionConfig
     {
         // Communication Type
-        public string CommunicationType { get; set; } = "TCP"; // "TCP" or "SERIAL"
+        public string CommunicationType { get; set; } = "SERIAL"; // "TCP" or "SERIAL"
 
         // TCP/IP Settings
         public string IpAddress { get; set; } = "127.0.0.1";
@@ -11,7 +11,7 @@
         public string ConnectionMethod { get; set; } = "client"; // "client" or "server" (for TCP only)
 
         // Serial RS232 Settings
-        public string PortName { get; set; } = "COM1";
+        public string PortName { get; set; } = "COM3";
         public int BaudRate { get; set; } = 9600;
         public string Parity { get; set; } = "None"; // None, Odd, Even, Mark, Space
         public int DataBits { get; set; } = 8;

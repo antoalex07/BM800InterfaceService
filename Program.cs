@@ -7,11 +7,13 @@ namespace TestService
     {
         public static void Main(string[] args)
         {
+            var logPath = "C:\\Logs\\MyService";
+            Directory.CreateDirectory(logPath); // Ensure folder exists
+
             Log.Logger = new LoggerConfiguration()
-                .WriteTo.File("C:\\Logs\\MyService\\app-log.txt", rollingInterval: RollingInterval.Day)
-                .WriteTo.File("C:\\Logs\\MyService\\error-log.txt", restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Error)
-                .WriteTo.Console()
-                .CreateLogger();
+                .WriteTo.File(Path.Combine(logPath, "app-log.txt"), rollingInterval: RollingInterval.Day)
+                .WriteTo.File(Path.Combine(logPath, "error-log.txt"), restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Error)
+                .CreateLogger(); // Removed Console sink
 
             try
             {

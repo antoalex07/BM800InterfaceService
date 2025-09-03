@@ -176,7 +176,7 @@ namespace TestService.Services
 
         private async Task ReceiveMessagesAsync(CancellationToken cancellationToken)
         {
-            if(_config.Direction == CommunicationDirection.Output)
+            if (_config.Direction == CommunicationDirection.Output)
             {
                 _logger.LogWarning("ReceiveMessagesAsync called but service is configured for output only. Exiting receive task.");
                 return;
@@ -193,8 +193,6 @@ namespace TestService.Services
                         if (_serialPort.BytesToRead > 0)
                         {
                             // Read available data. ReadExisting is okay for buffering approach.
-                            // Consider ReadLine if line endings are strictly message part separators,
-                            // but buffering with markers is more robust here.
                             var data = _serialPort.ReadExisting();
                             buffer.Append(data);
 
@@ -227,8 +225,8 @@ namespace TestService.Services
 
         private async Task ProcessReceivedData(StringBuilder buffer, CancellationToken cancellationToken)
         {
-            try 
-            { 
+            try
+            {
                 // Keep processing as long as there are complete messages in the buffer
                 bool messageFound;
                 do
@@ -241,7 +239,6 @@ namespace TestService.Services
                     if (startIndex != -1)
                     {
                         // Find the end index *after* the start marker
-                        // We need to find the *end marker* that corresponds to this start
                         int endIndex = currentBufferContent.IndexOf(MessageEndMarker, startIndex + MessageStartMarker.Length, StringComparison.Ordinal);
 
                         if (endIndex != -1)
@@ -255,28 +252,21 @@ namespace TestService.Services
                                 string completeMessage = currentBufferContent.Substring(startIndex, endOfEndTag - startIndex);
 
                                 // Remove the processed message from the buffer
-                                buffer.Remove(0, endOfEndTag); // Remove from start up to the end of the processed message
+                                buffer.Remove(0, endOfEndTag);
 
                                 // Process the extracted complete message
                                 await ProcessCompleteMessage(completeMessage);
                                 messageFound = true; // Loop again to check for another message
                             }
-                            // else: End tag found but --> not found yet, wait for more data
                         }
-                        // else: Start tag found but end tag not found yet, wait for more data
                     }
-                    // else: No start tag found at the beginning of the buffer, wait for more data or check if buffer starts with partial tag
-                    
-                    // Optional: Add a check for buffer overflow or malformed data if buffer grows too large without markers
 
-                } while (messageFound && buffer.Length > 0); // Continue if a message was found and buffer still has content
-                 
+                } while (messageFound && buffer.Length > 0);
+
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing received serial data buffer");
-                // Depending on error severity, you might want to clear the buffer or handle differently
-                // buffer.Clear(); // Example: Clear on error to prevent getting stuck
             }
         }
 
@@ -287,6 +277,10 @@ namespace TestService.Services
                 // Convert the complete message string to hex as expected by MessageHandler/Logging
                 var hexData = Convert.ToHexString(Encoding.UTF8.GetBytes(completeMessageString));
 
+                // Log formatted hex data
+                string formattedHex = _messageHandler.FormatHexWithSpaces(hexData);
+                _logger.LogInformation("Received Data (Hex): {HexMessage}", formattedHex);
+
                 _logger.LogInformation("Received complete serial message (based on markers)");
 
                 var messageData = new MessageData
@@ -294,8 +288,8 @@ namespace TestService.Services
                     HexData = hexData,
                     Direction = "Received",
                     Timestamp = DateTime.Now,
-                    // Pass the actual complete message string for XML processing
-                    XmlContent = _messageHandler.ProcessHexMessage(hexData) // MessageHandler expects hex
+                    // MessageHandler will now handle parameter extraction and logging
+                    XmlContent = _messageHandler.ProcessHexMessage(hexData)
                 };
 
                 // Trigger the event with the complete message data
@@ -332,7 +326,6 @@ namespace TestService.Services
 
         public async Task SendMessageAsync(string hexMessage)
         {
-
             if (_config.Direction == CommunicationDirection.Input)
             {
                 _logger.LogWarning("Attempted to send message on an Input-only connection.");
